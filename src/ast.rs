@@ -1,7 +1,5 @@
 //! Defining an abstract syntax tree for bacnet APDUs
 
-use std::string;
-
 /// Defines the whole body of a BACnet APDU message
 pub struct APDU {
     message_type: MessageType,

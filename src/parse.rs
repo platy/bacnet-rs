@@ -1,14 +1,27 @@
 use ast;
+use ast::SequenceableValue;
 use std::io;
 use std::io::Read;
-use std::io::BufRead;
 
 
 #[derive(Debug)]
 pub enum ParseError {
     ReadError(io::Error),
     InputEndedBeforeParsingCompleted, // "Input ended before parsing completed"
+    ValueSizeNotSupported, // such as an 8byte integer
     NotImplemented(&'static str),
+}
+
+impl PartialEq for ParseError {
+    fn eq(&self, other: &ParseError) -> bool {
+        match (self, other) {
+            (&ParseError::ReadError(_), &ParseError::ReadError(_)) => true,
+            (&ParseError::InputEndedBeforeParsingCompleted, &ParseError::InputEndedBeforeParsingCompleted) => true,
+            (&ParseError::ValueSizeNotSupported, &ParseError::ValueSizeNotSupported) => true,
+            (&ParseError::NotImplemented(string1), &ParseError::NotImplemented(string2)) => string1 == string2,
+            _ => false
+        }
+    }
 }
 
 pub type Context = fn(u8) -> u8;
@@ -22,27 +35,24 @@ pub type Context = fn(u8) -> u8;
 /// - if the length is too long
 /// - if the value can't be parsed
 /// - if the reader reaches the end of input before the parsing is complete
-fn parse_sequenceable_value(reader: &mut Read, context: Context) -> Result<ast::SequenceableValue, ParseError> {
-    use ast::PrimitiveValue;
-    use ast::SequenceableValue::ContextValue;
-    use ast::SequenceableValue::ApplicationValue;
-
+pub fn parse_sequenceable_value(reader: &mut Read, context: Context) -> Result<SequenceableValue, ParseError> {
     let (tag, class, tag_value) = try!(parse_tag(reader));
 
     if class {
-        match context(tag) {
-            0 => Ok(ContextValue(tag, PrimitiveValue::Null)),
-            1 => Ok(ContextValue(tag, PrimitiveValue::Boolean(tag_value != 0))),
-            2 => Ok(ContextValue(tag, PrimitiveValue::Unsigned(try!(read_unsigned(reader, tag_value as usize))))),
-            _ => Err(ParseError::NotImplemented("Some tag")),
-        }
+        Ok(SequenceableValue::ContextValue(tag, try!(tag_to_value(reader, context(tag), tag_value))))
     } else {
-        match tag {
-            0 => Ok(ApplicationValue(PrimitiveValue::Null)),
-            1 => Ok(ApplicationValue(PrimitiveValue::Boolean(tag_value != 0))),
-            2 => Ok(ApplicationValue(PrimitiveValue::Unsigned(try!(read_unsigned(reader, tag_value as usize))))),
-            _ => Err(ParseError::NotImplemented("Some tag")),
-        }
+        Ok(SequenceableValue::ApplicationValue(try!(tag_to_value(reader, tag, tag_value))))
+    }
+}
+
+fn tag_to_value(reader: &mut Read, tag: u8, tag_value: u32) -> Result<ast::PrimitiveValue, ParseError> {
+    use ast::PrimitiveValue;
+
+    match tag {
+        0 => Ok(PrimitiveValue::Null),
+        1 => Ok(PrimitiveValue::Boolean(tag_value != 0)),
+        2 => Ok(PrimitiveValue::Unsigned(try!(read_unsigned(reader, tag_value as usize)))),
+        _ => Err(ParseError::NotImplemented("Some tag")),
     }
 }
 
@@ -53,6 +63,8 @@ mod parse_sequenceable_value_tests {
     use ast;
     use ast::PrimitiveValue;
     use ast::SequenceableValue::ContextValue;
+    use ast::SequenceableValue::ApplicationValue;
+    use ast::SequenceableValue::ContextValueSequence;
     use std::io;
 
     fn context(context_tag: u8) -> u8 {
@@ -67,6 +79,11 @@ mod parse_sequenceable_value_tests {
     fn parsed_context_value_eq(data: &[u8], value: ast::SequenceableValue) {
         assert_eq!(value, parse_array(data).unwrap());
     }
+
+//    #[test]
+//    fn parse_context_wrapped_application_value() {
+//        parsed_context_value_eq(&[0x3eu8, 0x21, 0x01, 0x3f], ContextValueSequence(3, vec!(ApplicationValue(PrimitiveValue::Unsigned(1)))));
+//    } // TODO parse_tag needs to distinguish the 3 types of tag so that parse_sequenceable_value can do things properly
 
     #[test]
     fn parse_context_null() {
@@ -86,7 +103,8 @@ mod parse_sequenceable_value_tests {
         parsed_context_value_eq(&[0x3Au8, 0x99, 0x88], ContextValue(3, Unsigned(0x9988)));
         parsed_context_value_eq(&[0x3Bu8, 0x99, 0x88, 0x77], ContextValue(3, Unsigned(0x998877)));
         parsed_context_value_eq(&[0x3Cu8, 0x99, 0x88, 0x77, 0x66], ContextValue(3, Unsigned(0x99887766)));
-        // TODO length > 4 not supported
+        // length > 4 not supported
+        assert_eq!(ParseError::ValueSizeNotSupported, parse_array(&[0x3du8, 5]).unwrap_err());
     }
 
     fn parsed_application_value_eq(data: &[u8], value: PrimitiveValue) {
@@ -111,7 +129,8 @@ mod parse_sequenceable_value_tests {
         parsed_application_value_eq(&[0x22u8, 0x99, 0x88], Unsigned(0x9988));
         parsed_application_value_eq(&[0x23u8, 0x99, 0x88, 0x77], Unsigned(0x998877));
         parsed_application_value_eq(&[0x24u8, 0x99, 0x88, 0x77, 0x66], Unsigned(0x99887766));
-        // TODO length > 4 not supported
+        // length > 4 not supported
+        assert_eq!(ParseError::ValueSizeNotSupported, parse_array(&[0x25u8, 5]).unwrap_err());
     }
     // TODO tests for all the error types
 }
@@ -206,6 +225,9 @@ pub fn parse_tag(reader: &mut Read) -> Result<(u8, bool, u32), ParseError> {
 
 // Read an unsigned integer of the specified number of bytes
 fn read_unsigned(reader: &mut Read, size: usize) -> Result<u32, ParseError> {
+    if size > 4 {
+        return Err(ParseError::ValueSizeNotSupported)
+    }
     let mut value: u32 = 0;
     for i in (0..size).rev() {
         let next_byte = try!(read_one_byte(reader)) as u32;
