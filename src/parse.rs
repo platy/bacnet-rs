@@ -36,12 +36,13 @@ pub type Context = fn(u8) -> u8;
 /// - if the value can't be parsed
 /// - if the reader reaches the end of input before the parsing is complete
 pub fn parse_sequenceable_value(reader: &mut Read, context: Context) -> Result<SequenceableValue, ParseError> {
-    let (tag, class, tag_value) = try!(parse_tag(reader));
-
-    if class {
-        Ok(SequenceableValue::ContextValue(tag, try!(tag_to_value(reader, context(tag), tag_value))))
-    } else {
-        Ok(SequenceableValue::ApplicationValue(try!(tag_to_value(reader, tag, tag_value))))
+    match try!(parse_tag(reader)) {
+        Tag::Application(tag, tag_value) => 
+            Ok(SequenceableValue::ApplicationValue(try!(tag_to_value(reader, tag, tag_value)))),
+        Tag::Context(tag, tag_value) => 
+            Ok(SequenceableValue::ContextValue(tag, try!(tag_to_value(reader, context(tag), tag_value)))),
+        _ => 
+            Err(ParseError::NotImplemented("Array tags")),
     }
 }
 
@@ -83,7 +84,8 @@ mod parse_sequenceable_value_tests {
 //    #[test]
 //    fn parse_context_wrapped_application_value() {
 //        parsed_context_value_eq(&[0x3eu8, 0x21, 0x01, 0x3f], ContextValueSequence(3, vec!(ApplicationValue(PrimitiveValue::Unsigned(1)))));
-//    } // TODO parse_tag needs to distinguish the 3 types of tag so that parse_sequenceable_value can do things properly
+//    } // TODO after an open tag, parse_sequenceable_value needs to loop until a close tag -
+//    therefore it should probably return an option that is empty for a close tag
 
     #[test]
     fn parse_context_null() {
@@ -135,73 +137,20 @@ mod parse_sequenceable_value_tests {
     // TODO tests for all the error types
 }
 
+#[derive(PartialEq, Debug)]
+enum Tag {
+    Application(u8, u32),
+    Context(u8, u32),
+    Open(u8),
+    Close(u8),
+}
+
 /// Call when the next octet is the start of a tag, advances the reader to after the tag and
-/// returns the tag data in a tuple of (tag number, context class, value)
+/// returns the Tag enum
 ///
 /// # Errors
 /// - If the reader reaches the end before the parsing is complete
-///
-/// # Examples
-/// Single octet application tag.
-/// 
-/// ```rust
-/// use bacnet::parse::parse_tag;
-/// use std::io::Read;
-///
-/// let mut data: &[u8] = &[0x24u8];
-/// let mut reader: &mut Read = &mut data;
-/// let tag = parse_tag(&mut reader).unwrap();
-/// assert_eq!(tag, (2, false, 4));
-/// ```
-///
-/// Extended tag number context tag.
-/// 
-/// ```rust
-/// use bacnet::parse::parse_tag;
-/// use std::io::Read;
-///
-/// let mut data: &[u8] = &[0xF9u8, 0x59];
-/// let mut reader: &mut Read = &mut data;
-/// let tag = parse_tag(&mut reader).unwrap();
-/// assert_eq!(tag, (0x59, true, 1));
-/// ```
-///
-/// Extended value (8-bit) application tag.
-/// 
-/// ```rust
-/// use bacnet::parse::parse_tag;
-/// use std::io::Read;
-///
-/// let mut data: &[u8] = &[0x05u8, 200];
-/// let mut reader: &mut Read = &mut data;
-/// let tag = parse_tag(&mut reader).unwrap();
-/// assert_eq!(tag, (0, false, 200));
-/// ```
-///
-/// Extended value (16-bit) application tag.
-/// 
-/// ```rust
-/// use bacnet::parse::parse_tag;
-/// use std::io::Read;
-///
-/// let mut data: &[u8] = &[0x05u8, 0xFE, 0x59, 0x59];
-/// let mut reader: &mut Read = &mut data;
-/// let tag = parse_tag(&mut reader).unwrap();
-/// assert_eq!(tag, (0, false, 0x5959));
-/// ```
-///
-/// Extended value (32-bit) application tag.
-/// 
-/// ```rust
-/// use bacnet::parse::parse_tag;
-/// use std::io::Read;
-///
-/// let mut data: &[u8] = &[0x05u8, 0xFF, 0x59, 0x59, 0x59, 0x59];
-/// let mut reader: &mut Read = &mut data;
-/// let tag = parse_tag(&mut reader).unwrap();
-/// assert_eq!(tag, (0, false, 0x59595959));
-/// ```
-pub fn parse_tag(reader: &mut Read) -> Result<(u8, bool, u32), ParseError> {
+fn parse_tag(reader: &mut Read) -> Result<Tag, ParseError> {
     let first_byte = try!(read_one_byte(reader));
     let mut tag_num = (first_byte & 0xF0) >> 4;
     let class = (first_byte & 0x08) == 0x08;
@@ -211,16 +160,96 @@ pub fn parse_tag(reader: &mut Read) -> Result<(u8, bool, u32), ParseError> {
     if tag_num == 0xF {
         tag_num = try!(read_one_byte(reader));
     }
-    // Extended values
-    if value == 0x5 {
-        value = try!(read_one_byte(reader)) as u32;
-        if value == 0xFE {
-            value = try!(read_unsigned(reader, 2));
-        } else if value == 0xFF {
-            value = try!(read_unsigned(reader, 4));
+    // Open / Close tags
+    if value == 0x6 {
+        Ok(Tag::Open(tag_num))
+    } else if value == 0x7 {
+        Ok(Tag::Close(tag_num))
+    } // Extended values
+    else {
+        if value == 0x5 {
+            value = try!(read_one_byte(reader)) as u32;
+            if value == 0xFE {
+                value = try!(read_unsigned(reader, 2));
+            } else if value == 0xFF {
+                value = try!(read_unsigned(reader, 4));
+            }
         }
+        Ok(
+            if class {
+                Tag::Context(tag_num, value)
+            } else {
+                Tag::Application(tag_num, value)
+            }
+        )
     }
-    Ok((tag_num, class, value as u32))
+}
+
+#[cfg(test)]
+mod test_read_tag {
+    use super::parse_tag;
+    use super::Tag;
+    use std::io::Read;
+   
+    #[test]
+    fn open() {
+        let mut data: &[u8] = &[0x2eu8];
+        let mut reader: &mut Read = &mut data;
+        let tag = parse_tag(&mut reader).unwrap();
+        assert_eq!(Tag::Open(2), tag);
+    }
+
+    #[test]
+    fn close() {
+        let mut data: &[u8] = &[0x2fu8];
+        let mut reader: &mut Read = &mut data;
+        let tag = parse_tag(&mut reader).unwrap();
+        assert_eq!(Tag::Close(2), tag);
+    }
+
+    #[test]
+    fn application0() {
+        let mut data: &[u8] = &[0x24u8];
+        let mut reader: &mut Read = &mut data;
+        let tag = parse_tag(&mut reader).unwrap();
+        assert_eq!(Tag::Application(2, 4), tag);
+    }
+
+    /// Extended tag number context tag.
+    #[test]
+    fn context1() {
+        let mut data: &[u8] = &[0xF9u8, 0x59];
+        let mut reader: &mut Read = &mut data;
+        let tag = parse_tag(&mut reader).unwrap();
+        assert_eq!(Tag::Context(0x59, 1), tag);
+    }
+    
+    /// Extended value (8-bit) application tag.
+    #[test]
+    fn application1() {
+        let mut data: &[u8] = &[0x05u8, 200];
+        let mut reader: &mut Read = &mut data;
+        let tag = parse_tag(&mut reader).unwrap();
+        assert_eq!(Tag::Application(0, 200), tag);
+    }
+    
+    /// Extended value (16-bit) application tag.
+    #[test]
+    fn application2() {
+        let mut data: &[u8] = &[0x05u8, 0xFE, 0x59, 0x59];
+        let mut reader: &mut Read = &mut data;
+        let tag = parse_tag(&mut reader).unwrap();
+        assert_eq!(Tag::Application(0, 0x5959), tag);
+    }
+    
+    /// Extended value (32-bit) application tag.
+    #[test]
+    fn application32 () {
+        let mut data: &[u8] = &[0x05u8, 0xFF, 0x59, 0x59, 0x59, 0x59];
+        let mut reader: &mut Read = &mut data;
+        let tag = parse_tag(&mut reader).unwrap();
+        assert_eq!(Tag::Application(0, 0x59595959), tag);
+    }
 }
 
 // Read an unsigned integer of the specified number of bytes
@@ -261,4 +290,3 @@ fn test_read_unsigned_32() {
     let mut reader: &mut Read = &mut data;
     assert_eq!(read_unsigned(reader, 4).unwrap(), 0x22334455);
 }
-
