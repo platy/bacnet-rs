@@ -1,0 +1,6 @@
+[package]
+name = "bacnet"
+version = "0.1.0"
+authors = ["Mike Bush <mpbush@gmail.com>"]
+
+[dependencies]
