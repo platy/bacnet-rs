@@ -24,6 +24,73 @@ impl PartialEq for ParseError {
     }
 }
 
+pub fn parse_apdu_header(reader: &mut Read) -> Result<ast::ApduHeader, ParseError> {
+    use ast::ApduHeader;
+
+    let first_byte = try!(read_one_byte(reader));
+    match ((first_byte & 0xF0u8) >> 4, first_byte & 0x0Fu8) {
+        (0, pdu_flags) => {
+            let second_byte = try!(read_one_byte(reader));
+            Ok(ApduHeader::ConfirmedReq { 
+                pdu_flags: pdu_flags,
+                max_segments: (second_byte >> 4) & 0b111,
+                max_apdu: second_byte & 0x0F,
+                invoke_id: try!(read_one_byte(reader)),
+                service: try!(read_one_byte(reader)),
+            })
+        },
+        (1, _) =>
+            Ok(ApduHeader::UnconfirmedReq {
+                service: try!(read_one_byte(reader)),
+            }),
+        (2, _) =>
+            Ok(ApduHeader::SimpleAck {
+                invoke_id: try!(read_one_byte(reader)),
+                service: try!(read_one_byte(reader)),
+            }),
+        _ => Err(ParseError::NotImplemented("")),
+    }
+}
+
+#[cfg(test)]
+mod test_apdu_header_parse {
+    use super::parse_apdu_header;
+    use super::ParseError;
+    use ast::ApduHeader;
+    use std::io;
+
+    fn parse_array(data: &[u8]) -> Result<ApduHeader, ParseError> {
+        let mut reader: &mut io::Read = &mut io::Cursor::new(data);
+        parse_apdu_header(reader)
+    }
+
+    #[test]
+    fn parse_unconfirmed() {
+        assert_eq!(Ok(ApduHeader::ConfirmedReq {
+            pdu_flags: 0b0000,
+            max_segments: 0x0,
+            max_apdu: 5,
+            invoke_id: 1,
+            service: 15,
+        }), parse_array(&[0u8, 5, 1, 15]));
+    }
+
+    #[test]
+    fn parse_confirmed() {
+        assert_eq!(Ok(ApduHeader::UnconfirmedReq {
+            service: 8,
+        }), parse_array(&[0x10u8, 8]));
+    }
+
+    #[test]
+    fn parse_simple_ack() {
+        assert_eq!(Ok(ApduHeader::SimpleAck {
+            invoke_id: 1,
+            service: 15,
+        }), parse_array(&[0x20u8, 1, 15]));
+    }
+}
+
 pub type Context = fn(u8) -> u8;
 
 pub fn parse_value_sequence_to_end(reader: &mut Read, context: Context) -> Result<ast::ValueSequence, ParseError> {
