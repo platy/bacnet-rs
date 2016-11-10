@@ -26,8 +26,50 @@ impl PartialEq for ParseError {
 
 pub type Context = fn(u8) -> u8;
 
+pub fn parse_value_sequence_to_end(reader: &mut Read, context: Context) -> Result<ast::ValueSequence, ParseError> {
+    let mut list = vec!();
+    while let Some(child) = try!(parse_sequenceable_value(reader, context)) {
+        list.push(child);
+    }
+    Ok(list)
+}
+
+#[cfg(test)]
+mod test_value_sequence_parse {
+    use super::ParseError;
+    use ast;
+    use ast::PrimitiveValue;
+    use ast::SequenceableValue::ContextValue;
+    use ast::SequenceableValue::ApplicationValue;
+    use std::io;
+    use super::parse_value_sequence_to_end;
+
+    fn context(context_tag: u8) -> u8 {
+        context_tag - 1 // this gives us access to all the types for testing in a simple way
+    }
+
+    fn parse_array(data: &[u8]) -> Result<ast::ValueSequence, ParseError> {
+        let mut reader: &mut io::Read = &mut io::Cursor::new(data);
+        parse_value_sequence_to_end(reader, context)
+    }
+
+    fn parsed_value_sequence_eq(data: &[u8], value: ast::ValueSequence) {
+        assert_eq!(Ok(value), parse_array(data));
+    }
+
+    #[test]
+    fn parse_empty_value_sequence() {
+        parsed_value_sequence_eq(&[], vec!())
+    }
+
+    #[test]
+    fn parse_basic_value_sequence() {
+        parsed_value_sequence_eq(&[0x22u8, 0x99, 0x88, 0x28], vec!(ApplicationValue(PrimitiveValue::Unsigned(0x9988)), ContextValue(2, PrimitiveValue::Boolean(false))))
+    }
+}
+
 /// Should be called when the reader's next octet is the start of a tag. Returns none if the parsed
-/// value is a close tag
+/// value is a close tag, or if the reader is at the end to start with.
 ///
 /// # Errors
 ///
@@ -37,20 +79,24 @@ pub type Context = fn(u8) -> u8;
 /// - if the value can't be parsed
 /// - if the reader reaches the end of input before the parsing is complete
 pub fn parse_sequenceable_value(reader: &mut Read, context: Context) -> Result<Option<SequenceableValue>, ParseError> {
-    match try!(parse_tag(reader)) {
-        Tag::Application(tag, tag_value) => 
+    match parse_tag(reader) {
+        Ok(Tag::Application(tag, tag_value)) => 
             Ok(Some(SequenceableValue::ApplicationValue(try!(tag_to_value(reader, tag, tag_value))))),
-        Tag::Context(tag, tag_value) => 
+        Ok(Tag::Context(tag, tag_value)) => 
             Ok(Some(SequenceableValue::ContextValue(tag, try!(tag_to_value(reader, context(tag), tag_value))))),
-        Tag::Close(_) =>
+        Ok(Tag::Close(_)) =>
             Ok(None),
-        Tag::Open(tag) => {
+        Ok(Tag::Open(tag)) => {
             let mut list = vec!();
             while let Some(child) = try!(parse_sequenceable_value(reader, context)) {
                 list.push(child);
             }
             Ok(Some(SequenceableValue::ContextValueSequence(tag, list)))
         },
+        Err(ParseError::InputEndedBeforeParsingCompleted) =>
+            Ok(None),
+        Err(other) =>
+            Err(other),
     }
 }
 
@@ -87,6 +133,11 @@ mod parse_sequenceable_value_tests {
 
     fn parsed_context_value_eq(data: &[u8], value: ast::SequenceableValue) {
         assert_eq!(value, parse_array(data).unwrap().unwrap());
+    }
+
+    #[test]
+    fn parse_empty_reader() {
+        assert_eq!(Ok(None), parse_array(&[]));
     }
 
     #[test]
