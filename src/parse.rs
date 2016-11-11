@@ -397,14 +397,25 @@ fn read_unsigned(reader: &mut Read, size: usize) -> Result<u32, ParseError> {
 
 fn read_one_byte(reader: &mut Read) -> Result<u8, ParseError> {
     let mut buf = [0];
-        loop {
-            return match reader.read(&mut buf) {
-            Ok(0) => Err(ParseError::InputEndedBeforeParsingCompleted),
-            Ok(..) => Ok(buf[0]),
-            Err(ref e) if e.kind() == io::ErrorKind::Interrupted => continue,
-            Err(e) => Err(ParseError::ReadError(e)),
+    let ret;
+    loop {
+        match reader.read(&mut buf) {
+            Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {},
+            Err(e) => {
+                ret = Err(ParseError::ReadError(e));
+                break;
+            },
+            Ok(0) => {
+                ret = Err(ParseError::InputEndedBeforeParsingCompleted);
+                break;
+            },
+            Ok(..) => {
+                ret = Ok(buf[0]);
+                break;
+            },
         };
     }
+    ret
 }
 
 #[test]
