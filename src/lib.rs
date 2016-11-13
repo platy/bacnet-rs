@@ -1,5 +1,6 @@
 pub mod ast;
 pub mod parse;
+pub mod service;
 
 // fn handle_whois(buf: &[u8]) -> String {
 //     String::from("WHOIS")
