@@ -1,4 +1,6 @@
-# Rs-BACnet
+# BACnet-rs
+
+master : [![Build Status](https://travis-ci.org/platy/bacnet-rs.svg?branch=master)](https://travis-ci.org/platy/bacnet-rs)
 
 Currently this consists only of an abstract-syntax-tree representation of BACnet values and parsers for those trees.
 
