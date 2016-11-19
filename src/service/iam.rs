@@ -30,6 +30,10 @@ impl Message {
 }
 
 impl ServiceMessage for Message {
+    fn choice() -> u8 {
+        0
+    }
+
     fn marshall(&self) -> ValueSequence {
         vec!(
             ApplicationValue(ObjectId(object::ObjectId(object_type::DEVICE, self.device_instance))),

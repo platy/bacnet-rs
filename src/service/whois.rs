@@ -17,7 +17,11 @@ struct Message {
     device_instance_high: u32,
 }
 
-fn handler(whois: Message, db: object::BacnetDB) -> Option<service::iam::Message> {
+pub fn handler(body: &ValueSequence, db: &object::BacnetDB) -> Option<ValueSequence> {
+    m_handler(Message::unmarshall(body).unwrap(), db).map(|message| message.marshall())
+}
+
+fn m_handler(whois: Message, db: &object::BacnetDB) -> Option<service::iam::Message> {
     let device = db.device();
 	if whois.device_instance_low <= device.instance && whois.device_instance_high >= device.instance {
         Some(super::iam::Message::about(device))
@@ -28,7 +32,7 @@ fn handler(whois: Message, db: object::BacnetDB) -> Option<service::iam::Message
 
 #[cfg(test)]
 mod handler_test {
-	use super::handler;
+	use super::m_handler;
 	use super::Message;
 	use service::iam;
 	use object::BacnetDB;
@@ -45,10 +49,10 @@ mod handler_test {
     }
 
 	fn whois_range(low: u32, high: u32) -> Option<iam::Message> {
-		handler(Message {
+		m_handler(Message {
 			device_instance_low: low,
 			device_instance_high: high,
-		}, test_db())
+		}, &test_db())
 	}
 
 	#[test]
@@ -61,6 +65,8 @@ mod handler_test {
 }
 
 impl ServiceMessage for Message {
+    fn choice() -> u8 { 8 }
+
     fn marshall(&self) -> ValueSequence {
         vec!(
             ContextValue(0, Unsigned(self.device_instance_low)), 
