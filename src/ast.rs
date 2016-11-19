@@ -70,8 +70,9 @@ pub enum SequenceableValue {
 /// Context values have an id which has a meaning specific to the message it is within
 pub type Context = u8;
 
-pub mod object_type {
-    pub const DEVICE: u16 = 8;
+pub mod ObjectType {
+    pub type Type = u16;
+    pub const Device: Type = 8;
 }
 
 /// BACnet primitive application value types
@@ -91,6 +92,6 @@ pub enum PrimitiveValue {
     Enumerated(u32),
     // Date, // not yet implemented as they dont have close enough equvalents in rust
     // Time,
-    ObjectId(u16, u32),
+    ObjectId(ObjectType::Type, u32),
 }
 

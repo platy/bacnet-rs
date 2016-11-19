@@ -280,34 +280,6 @@ enum Tag {
 ///
 /// # Errors
 /// - If the reader reaches the end before the parsing is complete
-///
-/// # Description of encoding
-///
-/// BACnet encoding encodes meta data into a preceding octet.
-/// BACnet has 2 classes of tags, context tags and application tags. The class is
-/// identifed by the 5th bit of the tag octet, a `1` indicating a context tag.
-/// The first 4 bits of a context tag are the context number - a context for the current production
-/// should then specify the purpose and the primitive type of the value.
-/// The first 4 bits of an application tag are the type number - identifiying the type of the
-/// value.
-/// The use of the last 3 bits of the tag depend on the type (identified either by the type field or
-/// by the context identified by the context field). For a boolean the value can be encoded
-/// directly into the tag, for a named tag, the last 3 bits identify the name, in general the last
-/// 3 bits identify the length of the value in octets.
-/// PD open / close tags are types of named context tags - their use must be identified by their
-/// context number and they will be encoded by an 0xE (for open) and 0xF (for close). Their purpose
-/// is to either allow for a context value with any type (the value would be specified as an
-/// application tag inside), to specify a contructed type (where the production inside would have a
-/// new context), or to group a sequence of values.
-///
-/// ## Extending type and length fields
-///
-/// The type field can be extended into another octet by using 0xF in the type field, then the next
-/// octet becomes the type field and type / context values 0-254 (255 is reserved).
-///
-/// The Length field can be extended by using 0b111 in the length field, the next octet becomes a
-/// length field, if the next octet is 0xFE, the next 2 octets become a length field, if it is 0xFF
-/// then the next 4 octets become a length field. This encoding allows lengths up to 2^32-1.
 fn parse_tag(reader: &mut Read) -> Result<Tag, ParseError> {
     let first_byte = try!(read_one_byte(reader));
     let mut tag_num = (first_byte & 0xF0) >> 4;
