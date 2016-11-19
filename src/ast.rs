@@ -1,5 +1,7 @@
 //! Defining an abstract syntax tree for bacnet APDUs
 
+use object;
+
 /// Defines the whole body of a BACnet APDU message
 #[derive(Debug, PartialEq)]
 pub enum ApduHeader {
@@ -70,10 +72,6 @@ pub enum SequenceableValue {
 /// Context values have an id which has a meaning specific to the message it is within
 pub type Context = u8;
 
-pub mod object_type {
-    pub const DEVICE: u16 = 8;
-}
-
 /// BACnet primitive application value types
 #[derive(Debug, PartialEq)]
 pub enum PrimitiveValue {
@@ -91,6 +89,6 @@ pub enum PrimitiveValue {
     Enumerated(u32),
     // Date, // not yet implemented as they dont have close enough equvalents in rust
     // Time,
-    ObjectId(u16, u32),
+    ObjectId(object::ObjectId),
 }
 

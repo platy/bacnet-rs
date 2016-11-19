@@ -6,22 +6,33 @@ use ast::PrimitiveValue::Unsigned;
 use ast::SequenceableValue::ApplicationValue;
 use ast::PrimitiveValue::ObjectId;
 use ast::PrimitiveValue::Enumerated;
-use ast::object_type;
+use object::object_type;
 use super::ServiceMessage;
 use super::UnmarshallError;
+use object;
+use object::DeviceObject;
 
 #[derive(Debug, PartialEq)]
-struct Message {
+pub struct Message {
     device_instance: u32,
     max_apdu: u32,
     segmentation_support: u8,
     vendor_id: u32,
 }
 
+impl Message {
+	pub fn about(device: &DeviceObject) -> Message { Message {
+		device_instance: device.instance,
+		max_apdu: device.max_apdu_length_supported,
+		segmentation_support: device.segmentation_supported,
+		vendor_id: device.vendor_identifier,
+	} }
+}
+
 impl ServiceMessage for Message {
     fn marshall(&self) -> ValueSequence {
         vec!(
-            ApplicationValue(ObjectId(object_type::DEVICE, self.device_instance)),
+            ApplicationValue(ObjectId(object::ObjectId(object_type::DEVICE, self.device_instance))),
             ApplicationValue(Unsigned(self.max_apdu)),
             ApplicationValue(Enumerated(self.segmentation_support as u32)),
             ApplicationValue(Unsigned(self.vendor_id)),
@@ -30,7 +41,7 @@ impl ServiceMessage for Message {
 
     fn unmarshall(body: &ValueSequence) -> Result<Self, UnmarshallError> {
         match (&body[0], &body[1], &body[2], &body[3]) {
-            (&ApplicationValue(ObjectId(object_type::DEVICE, device_instance)), 
+            (&ApplicationValue(ObjectId(object::ObjectId(object_type::DEVICE, device_instance))), 
              &ApplicationValue(Unsigned(max_apdu)),
              &ApplicationValue(Enumerated(segmentation_support)),
              &ApplicationValue(Unsigned(vendor_id))) =>
@@ -53,13 +64,14 @@ mod test {
     use ast::PrimitiveValue::Enumerated;
     use ast::PrimitiveValue::ObjectId;
     use ast::SequenceableValue::ApplicationValue;
-    use ast::object_type;
+    use object;
+    use object::object_type;
 
     #[test]
     fn test_unmarshall_correct() {
         assert_eq!(Ok(Message { device_instance: 10, max_apdu: 1476, segmentation_support: 3, vendor_id: 1 }),
                    Message::unmarshall(&vec!(
-                          ApplicationValue(ObjectId(object_type::DEVICE, 10)), 
+                          ApplicationValue(ObjectId(object::ObjectId(object_type::DEVICE, 10))), 
                           ApplicationValue(Unsigned(1476)),
                           ApplicationValue(Enumerated(3)),
                           ApplicationValue(Unsigned(1)))));
@@ -68,7 +80,7 @@ mod test {
     #[test]
     fn test_marshall_correct() {
         assert_eq!(vec!(
-                ApplicationValue(ObjectId(object_type::DEVICE, 10)),
+                ApplicationValue(ObjectId(object::ObjectId(object_type::DEVICE, 10))),
                 ApplicationValue(Unsigned(1476)),
                 ApplicationValue(Enumerated(3)),
                 ApplicationValue(Unsigned(1))),
