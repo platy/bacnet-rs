@@ -40,4 +40,3 @@ type UnconfirmedHandler = fn(&ValueSequence, &BacnetDB) -> Option<ValueSequence>
 // 	fn service_choice() -> u8;
 // 	fn handle(&ValueSequence, &BacnetDB) -> Option<()>;
 // }
-

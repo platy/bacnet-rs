@@ -72,6 +72,10 @@ pub enum SequenceableValue {
 /// Context values have an id which has a meaning specific to the message it is within
 pub type Context = u8;
 
+pub mod object_type {
+    pub const DEVICE: u16 = 8;
+}
+
 /// BACnet primitive application value types
 #[derive(Debug, PartialEq)]
 pub enum PrimitiveValue {
