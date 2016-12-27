@@ -4,3 +4,7 @@ version = "0.1.0"
 authors = ["Mike Bush <mpbush@gmail.com>"]
 
 [dependencies]
+tokio-core = "0.1"
+futures = "0.1.7"
+env_logger = "0.3.5"
+
