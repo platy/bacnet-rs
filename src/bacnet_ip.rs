@@ -10,9 +10,7 @@ use std::io;
 use std::net::SocketAddr;
 use std::str;
 
-use futures::{Future, Stream, Sink};
-use tokio_core::net::{UdpSocket, UdpCodec};
-use tokio_core::reactor::Core;
+use tokio_core::net::UdpCodec;
 
 pub struct BipCodec;
 
@@ -38,6 +36,9 @@ impl UdpCodec for BipCodec {
             0xA => {            // J.2.11.1 Original-Unicast-NPDU
                 VLLFrame::OriginalUnicastNPDU(buf[4..].to_vec())
             },
+            0xB => {            // J.2.12 Original-Broadcast-NPDU
+                VLLFrame::OriginalBroadcastNPDU(buf[4..].to_vec())
+            },
             _ =>
                 return Err(io::Error::new(ErrorKind::InvalidData, "Unsupported BVLL message"))
         };
@@ -50,6 +51,7 @@ impl UdpCodec for BipCodec {
         into.push(0x81);        // BVLL for BACnet/IP
         let (function, body) = match frame {
             VLLFrame::OriginalUnicastNPDU(data) => (0xA, data), // J.2.11 Original-Unicast-NPDU
+            VLLFrame::OriginalBroadcastNPDU(data) => (0xB, data), // J.2.12 Original-Broadcast-NPDUU
         };
         into.push(function);    // BVLC Function : 1-octet
         let length: u16 = 4 + body.len() as u16;
@@ -65,11 +67,12 @@ impl UdpCodec for BipCodec {
 pub enum VLLFrame {
     // TODO VLC control messages
     OriginalUnicastNPDU(Vec<u8>),   // J.2.11 
+    OriginalBroadcastNPDU(Vec<u8>),   // J.2.12
 }
 
 
 #[test]
-fn decodeErr() {
+fn decode_err() {
     let addr: SocketAddr = "0.0.0.0:50".parse().unwrap();
     assert_eq!(BipCodec.decode(&addr, &[0x45, 0, 0, 4]).unwrap_err().kind(), io::ErrorKind::InvalidData);
     assert_eq!(BipCodec.decode(&addr, &[0x81, 0, 0, 4]).unwrap_err().kind(), io::ErrorKind::InvalidData);
@@ -80,7 +83,7 @@ fn decodeErr() {
 }
 
 #[test]
-fn decodeNPDU() {
+fn decode_npdu_unicast() {
     let addr: SocketAddr = "0.0.0.0:50".parse().unwrap();
     let mut data = vec![0x81u8, 0x0a, 0, 9];
     data.extend("Hello".as_bytes());
@@ -88,13 +91,33 @@ fn decodeNPDU() {
 }
 
 #[test]
-fn encodeNPDU() {
+fn decode_npdu_broadcast() {
+    let addr: SocketAddr = "0.0.0.0:50".parse().unwrap();
+    let mut data = vec![0x81u8, 0x0b, 0, 9];
+    data.extend("Hello".as_bytes());
+    assert_eq!(BipCodec.decode(&addr, &data).unwrap(), (addr, VLLFrame::OriginalBroadcastNPDU("Hello".as_bytes().to_vec())));
+}
+
+#[test]
+fn encode_npdu_unicast() {
     let addr: SocketAddr = "0.0.0.0:50".parse().unwrap();
     let mut buf = Vec::new();
     let npdu = "Hello".as_bytes().to_vec();
     let frame = VLLFrame::OriginalUnicastNPDU(npdu.clone());
     assert_eq!(BipCodec.encode((addr, frame), &mut buf), addr);
     let mut expected = vec![0x81u8, 0x0a, 0, 9];
+    expected.extend(npdu);
+    assert_eq!(expected, buf);
+}
+
+#[test]
+fn encode_npdu_broadcast() {
+    let addr: SocketAddr = "0.0.0.0:50".parse().unwrap();
+    let mut buf = Vec::new();
+    let npdu = "Hello".as_bytes().to_vec();
+    let frame = VLLFrame::OriginalBroadcastNPDU(npdu.clone());
+    assert_eq!(BipCodec.encode((addr, frame), &mut buf), addr);
+    let mut expected = vec![0x81u8, 0x0b, 0, 9];
     expected.extend(npdu);
     assert_eq!(expected, buf);
 }
