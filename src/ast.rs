@@ -1,5 +1,7 @@
 //! Defining an abstract syntax tree for bacnet APDUs
 
+use object;
+
 /// Defines the whole body of a BACnet APDU message
 #[derive(Debug, PartialEq)]
 pub enum ApduHeader {
@@ -91,6 +93,6 @@ pub enum PrimitiveValue {
     Enumerated(u32),
     // Date, // not yet implemented as they dont have close enough equvalents in rust
     // Time,
-    ObjectId(u16, u32),
+    ObjectId(object::ObjectId),
 }
 
