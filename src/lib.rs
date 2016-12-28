@@ -7,4 +7,5 @@ pub mod parse;
 pub mod service;
 pub mod object;
 pub mod bacnet_ip;
+pub mod network;
 

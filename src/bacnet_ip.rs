@@ -2,9 +2,13 @@
 /// and is described in Annex J of the BACnet spec it includes necessary link control
 /// messages to enable BACnet internetworking.
 ///
-/// This implementation currently only supports funtion 10 (Original unicast NPDU) 
-/// which allows the upper layers of BACnet to operate over a single segment BACnet/IP
-/// network.
+/// This implementation currently only supports functions 10 and 11 (Original unicast NPDU and
+/// Original broadcast NPDU)) which allows the upper layers of BACnet to operate over a single segment 
+/// BACnet/IP network.
+///
+/// # Note
+///
+/// Support is not provided for routing, multicast or broadcast to foreign networks.
 
 use std::io;
 use std::net::SocketAddr;
