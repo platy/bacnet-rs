@@ -12,9 +12,18 @@ use ast::SequenceableValue::ContextValue;
 use ast::get_context_value;
 
 #[derive(Debug, PartialEq)]
-struct Message {
+pub struct Message {
     device_instance_low: u32,
     device_instance_high: u32,
+}
+
+impl Message {
+    pub fn new(device_instance_low: u32, device_instance_high: u32) -> Message {
+        Message {
+            device_instance_low: device_instance_low,
+            device_instance_high: device_instance_high,
+        }
+    }
 }
 
 pub fn handler(body: &ValueSequence, db: &object::BacnetDB) -> Option<ValueSequence> {
@@ -65,6 +74,8 @@ mod handler_test {
 }
 
 impl ServiceMessage for Message {
+    type Message = Self;
+
     fn choice() -> u8 { 8 }
 
     fn marshall(&self) -> ValueSequence {
