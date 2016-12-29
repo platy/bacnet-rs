@@ -1,7 +1,7 @@
-/// Module for procedures for the BACnet network layer described in clause 6.
-///
-/// The current implementation does not seek to implement routing and implements only what is
-/// needed in the network layer for messages to be accepte by peers on a local BACnet segment.
+//! Module for procedures for the BACnet network layer described in clause 6.
+//!
+//! The current implementation does not seek to implement routing and implements only what is
+//! needed in the network layer for messages to be accepte by peers on a local BACnet segment.
 
 use std::io;
 
@@ -35,6 +35,26 @@ struct _NetworkReportIndication {
     // security_parameters
 }
 
+impl NetworkRequest {
+    /// Construct a network request for the given data expecting no reply
+    pub fn noreply(data: Vec<u8>) -> NetworkRequest {
+        NetworkRequest {
+            data: data,
+            network_priority: 0,
+            data_expecting_reply: false,
+        }
+    }
+
+    /// Construct a network request for the given data expecting a reply
+    pub fn expect_reply(data: Vec<u8>) -> NetworkRequest {
+        NetworkRequest {
+            data: data,
+            network_priority: 0,
+            data_expecting_reply: true,
+        }
+    }
+}
+
 // Encode a network request for transmission.
 //
 // # Note
@@ -59,7 +79,6 @@ pub fn decode(data: &[u8]) -> io::Result<NetworkIndication> {
     if data[0] != 1 {
         return Err(Error::new(ErrorKind::InvalidData, format!("Unsupported: BACnet version : {}", data[0])));
     }
-    println!("{}", data[1]);
     if (data[1] & (1 << 7)) > 0 {
         return Err(Error::new(ErrorKind::InvalidData, "Unsupported: Network layer message"));
     }
