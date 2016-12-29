@@ -348,65 +348,50 @@ mod test_read_tag {
     use super::parse_tag;
     use super::Tag;
     use std::io::Read;
+
+    fn assert_tag_read(data: &[u8], expected: Tag) {
+        let mut reader: &mut Read = &mut data.clone();
+        let new_tag = parse_tag(&mut reader).unwrap();
+        assert_eq!(expected, new_tag);
+    }
    
     #[test]
     fn open() {
-        let mut data: &[u8] = &[0x2eu8];
-        let mut reader: &mut Read = &mut data;
-        let tag = parse_tag(&mut reader).unwrap();
-        assert_eq!(Tag::Open(2), tag);
+        assert_tag_read(&[0x2eu8], Tag::Open(2));
     }
 
     #[test]
     fn close() {
-        let mut data: &[u8] = &[0x2fu8];
-        let mut reader: &mut Read = &mut data;
-        let tag = parse_tag(&mut reader).unwrap();
-        assert_eq!(Tag::Close(2), tag);
+        assert_tag_read(&[0x2fu8], Tag::Close(2));
     }
 
     #[test]
     fn application0() {
-        let mut data: &[u8] = &[0x24u8];
-        let mut reader: &mut Read = &mut data;
-        let tag = parse_tag(&mut reader).unwrap();
-        assert_eq!(Tag::Application(2, 4), tag);
+        assert_tag_read(&[0x24u8], Tag::Application(2, 4));
     }
 
     /// Extended tag number context tag.
     #[test]
     fn context1() {
-        let mut data: &[u8] = &[0xF9u8, 0x59];
-        let mut reader: &mut Read = &mut data;
-        let tag = parse_tag(&mut reader).unwrap();
-        assert_eq!(Tag::Context(0x59, 1), tag);
+        assert_tag_read(&[0xF9u8, 0x59], Tag::Context(0x59, 1));
     }
     
     /// Extended value (8-bit) application tag.
     #[test]
     fn application1() {
-        let mut data: &[u8] = &[0x05u8, 200];
-        let mut reader: &mut Read = &mut data;
-        let tag = parse_tag(&mut reader).unwrap();
-        assert_eq!(Tag::Application(0, 200), tag);
+        assert_tag_read(&[0x05u8, 200], Tag::Application(0, 200));
     }
     
     /// Extended value (16-bit) application tag.
     #[test]
     fn application2() {
-        let mut data: &[u8] = &[0x05u8, 0xFE, 0x59, 0x59];
-        let mut reader: &mut Read = &mut data;
-        let tag = parse_tag(&mut reader).unwrap();
-        assert_eq!(Tag::Application(0, 0x5959), tag);
+        assert_tag_read(&[0x05u8, 0xFE, 0x59, 0x59], Tag::Application(0, 0x5959));
     }
     
     /// Extended value (32-bit) application tag.
     #[test]
     fn application32 () {
-        let mut data: &[u8] = &[0x05u8, 0xFF, 0x59, 0x59, 0x59, 0x59];
-        let mut reader: &mut Read = &mut data;
-        let tag = parse_tag(&mut reader).unwrap();
-        assert_eq!(Tag::Application(0, 0x59595959), tag);
+        assert_tag_read(&[0x05u8, 0xFF, 0x59, 0x59, 0x59, 0x59], Tag::Application(0, 0x59595959));
     }
 }
 
