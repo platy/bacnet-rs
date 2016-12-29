@@ -45,4 +45,5 @@ Serial form          AST         Message
 - Support all the Application PDU types in Clause 20
 - Support includes all of B-General - Annex L
 - Register vendor id to use in examples
+- Consider ASN.1 serialisers instead of having our own implementation and at least document that ASN.1 is what is being used
 
