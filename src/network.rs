@@ -6,7 +6,7 @@
 use std::io;
 
 #[derive(PartialEq, Debug)]
-struct NetworkRequest {
+pub struct NetworkRequest {
     // destinationAddress
     data: Vec<u8>,
     network_priority: u8,
@@ -15,7 +15,7 @@ struct NetworkRequest {
 }
 
 #[derive(PartialEq, Debug)]
-struct NetworkIndication {
+pub struct NetworkIndication {
     // source_addres
     // destination_address
     data: Vec<u8>,
@@ -35,7 +35,25 @@ struct _NetworkReportIndication {
     // security_parameters
 }
 
-fn decode(data: &[u8]) -> io::Result<NetworkIndication> {
+// Encode a network request for transmission.
+//
+// # Note
+// 
+// Currently only local networking is supported
+//
+// # Panics
+//
+// If network priority is greater than 3
+pub fn encode(request: NetworkRequest, into: &mut Vec<u8>) {
+    assert!(request.network_priority < 4, format!("Valid network priorities are 0..3, provided : {}", request.network_priority));
+    into.push(0x01);
+    let reply_flag = if request.data_expecting_reply { 4 } else { 0 };
+    into.push(reply_flag ^ request.network_priority);
+    into.extend(request.data);
+}
+
+// Decode an NPDU into a network indication
+pub fn decode(data: &[u8]) -> io::Result<NetworkIndication> {
     use std::io::{Error, ErrorKind};
 
     if data[0] != 1 {
@@ -63,8 +81,37 @@ fn decode(data: &[u8]) -> io::Result<NetworkIndication> {
 #[cfg(test)]
 mod test {
     use super::decode;
+    use super::encode;
     use super::NetworkRequest;
     use super::NetworkIndication;
+
+    #[test]
+    fn encode_local_0() {
+        let data = vec![0x01u8, 0x02, 0x03];
+        let mut buf = Vec::new();
+        encode(NetworkRequest {
+            data: data.clone(),
+            network_priority: 0,
+            data_expecting_reply: false,
+        }, &mut buf);
+        let mut expecting = vec![0x01, 0x00];
+        expecting.extend(data);
+        assert_eq!(buf, expecting);
+    }
+
+    #[test]
+    fn encode_local_3() {
+        let data = vec![0x01u8, 0x02, 0x03];
+        let mut buf = Vec::new();
+        encode(NetworkRequest {
+            data: data.clone(),
+            network_priority: 3,
+            data_expecting_reply: true,
+        }, &mut buf);
+        let mut expecting = vec![0x01, 0x07];
+        expecting.extend(data);
+        assert_eq!(buf, expecting);
+    }
 
     #[test]
     fn decode_local() {
@@ -87,7 +134,7 @@ mod test {
 
     #[test]
     fn decode_unsupported() {
-        use std::io::{Error, ErrorKind};
+        use std::io::ErrorKind;
         assert_eq!(ErrorKind::InvalidData, decode(&[0x2u8, 0b00000000, 1, 2]).unwrap_err().kind());
         assert_eq!(ErrorKind::InvalidData, decode(&[0x1u8, 0b10000000, 1, 2]).unwrap_err().kind());
         assert_eq!(ErrorKind::InvalidData, decode(&[0x1u8, 0b00100000, 1, 2]).unwrap_err().kind());
