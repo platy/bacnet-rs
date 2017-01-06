@@ -2,11 +2,19 @@
 
 use object;
 
+#[derive(Debug, PartialEq)]
+pub struct SegmentInfo {
+    more_follows: bool,
+    sequence_number: u8,
+    proposed_window_size: u8,
+}
+
 /// Defines the whole body of a BACnet APDU message
 #[derive(Debug, PartialEq)]
 pub enum ApduHeader {
     ConfirmedReq { 
-        pdu_flags: u8, 
+        segmented: Option<SegmentInfo>,
+        segmented_response_accepted: bool,
         max_segments: u8, 
         max_apdu: u8, 
         invoke_id: u8, 

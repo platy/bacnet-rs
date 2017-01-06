@@ -29,16 +29,19 @@ pub fn parse_apdu_header(reader: &mut Read) -> Result<ast::ApduHeader, ParseErro
 
     let first_byte = try!(read_one_byte(reader));
     match ((first_byte & 0xF0u8) >> 4, first_byte & 0x0Fu8) {
-        (0, pdu_flags) => {
+        (0, 0) => {
             let second_byte = try!(read_one_byte(reader));
             Ok(ApduHeader::ConfirmedReq { 
-                pdu_flags: pdu_flags,
+                segmented: None,
+                segmented_response_accepted: false,
                 max_segments: (second_byte >> 4) & 0b111,
                 max_apdu: second_byte & 0x0F,
                 invoke_id: try!(read_one_byte(reader)),
                 service: try!(read_one_byte(reader)),
             })
         },
+        (0, _) => 
+            Err(ParseError::NotImplemented("Segmentation")),
         (1, _) =>
             Ok(ApduHeader::UnconfirmedReq {
                 service: try!(read_one_byte(reader)),
@@ -48,7 +51,8 @@ pub fn parse_apdu_header(reader: &mut Read) -> Result<ast::ApduHeader, ParseErro
                 invoke_id: try!(read_one_byte(reader)),
                 service: try!(read_one_byte(reader)),
             }),
-        _ => Err(ParseError::NotImplemented("")),
+        _ => 
+            Err(ParseError::NotImplemented("")),
     }
 }
 
@@ -67,7 +71,8 @@ mod test_apdu_header_parse {
     #[test]
     fn parse_unconfirmed() {
         assert_eq!(Ok(ApduHeader::ConfirmedReq {
-            pdu_flags: 0b0000,
+            segmented: None,
+            segmented_response_accepted: false,
             max_segments: 0x0,
             max_apdu: 5,
             invoke_id: 1,
