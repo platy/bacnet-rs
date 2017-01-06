@@ -1,7 +1,5 @@
 use ast;
 use ast::SequenceableValue;
-use std::io;
-use std::io::Write;
 
 
 // #[derive(Debug)]
@@ -120,152 +118,141 @@ use std::io::Write;
 //         write_value_sequence_to_end(writer, context)
 //     }
 // 
-//     fn writed_value_sequence_eq(data: &[u8], value: ast::ValueSequence) {
+//     fn written_value_sequence_eq(data: &[u8], value: ast::ValueSequence) {
 //         assert_eq!(Ok(value), write_array(data));
 //     }
 // 
 //     #[test]
 //     fn write_empty_value_sequence() {
-//         writed_value_sequence_eq(&[], vec!())
+//         written_value_sequence_eq(&[], vec!())
 //     }
 // 
 //     #[test]
 //     fn write_basic_value_sequence() {
-//         writed_value_sequence_eq(&[0x22u8, 0x99, 0x88, 0x28], vec!(ApplicationValue(PrimitiveValue::Unsigned(0x9988)), ContextValue(2, PrimitiveValue::Boolean(false))))
+//         written_value_sequence_eq(&[0x22u8, 0x99, 0x88, 0x28], vec!(ApplicationValue(PrimitiveValue::Unsigned(0x9988)), ContextValue(2, PrimitiveValue::Boolean(false))))
 //     }
 // }
-// 
-// /// Should be called when the writer's next octet is the start of a tag. Returns none if the writed
-// /// value is a close tag, or if the writer is at the end to start with.
-// ///
-// /// # Errors
-// ///
-// /// - if this is a context tag and there is no entry in the context for this tag
-// /// - if the application tag is unsupported / reserved
-// /// - if the length is too long
-// /// - if the value can't be writed
-// /// - if the writer reaches the end of input before the parsing is complete
-// pub fn write_sequenceable_value(writer: &mut Write, context: Context) -> Result<Option<SequenceableValue>, ParseError> {
-//     match write_tag(writer) {
-//         Ok(Tag::Application(tag, tag_value)) => 
-//             Ok(Some(SequenceableValue::ApplicationValue(try!(tag_to_value(writer, tag, tag_value))))),
-//         Ok(Tag::Context(tag, tag_value)) => 
-//             Ok(Some(SequenceableValue::ContextValue(tag, try!(tag_to_value(writer, context(tag), tag_value))))),
-//         Ok(Tag::Close(_)) =>
-//             Ok(None),
-//         Ok(Tag::Open(tag)) => {
-//             let mut list = vec!();
-//             while let Some(child) = try!(write_sequenceable_value(writer, context)) {
-//                 list.push(child);
-//             }
-//             Ok(Some(SequenceableValue::ContextValueSequence(tag, list)))
-//         },
-//         Err(ParseError::InputEndedBeforeParsingCompleted) =>
-//             Ok(None),
-//         Err(other) =>
-//             Err(other),
-//     }
-// }
-// 
-// fn tag_to_value(writer: &mut Write, tag: u8, tag_value: u32) -> Result<ast::PrimitiveValue, ParseError> {
-//     use ast::PrimitiveValue;
-// 
-//     match tag {
-//         0 => Ok(PrimitiveValue::Null),
-//         1 => Ok(PrimitiveValue::Boolean(tag_value != 0)),
-//         2 => Ok(PrimitiveValue::Unsigned(try!(write_unsigned(writer, tag_value as usize)))),
-//         _ => Err(ParseError::NotImplemented("Some tag")),
-//     }
-// }
-// 
-// #[cfg(test)]
-// mod write_sequenceable_value_tests {
-//     use super::ParseError;
-//     use super::write_sequenceable_value;
-//     use ast;
-//     use ast::PrimitiveValue;
-//     use ast::SequenceableValue::ContextValue;
-//     use ast::SequenceableValue::ApplicationValue;
-//     use ast::SequenceableValue::ContextValueSequence;
-//     use std::io;
-// 
-//     fn context(context_tag: u8) -> u8 {
-//         context_tag - 1 // this gives us access to all the types for testing in a simple way
-//     }
-// 
-//     fn write_array(data: &[u8]) -> Result<Option<ast::SequenceableValue>, ParseError> {
-//         let mut writer: &mut io::Write = &mut io::Cursor::new(data);
-//         write_sequenceable_value(writer, context)
-//     }
-// 
-//     fn writed_context_value_eq(data: &[u8], value: ast::SequenceableValue) {
-//         assert_eq!(value, write_array(data).unwrap().unwrap());
-//     }
-// 
-//     #[test]
-//     fn write_empty_writer() {
-//         assert_eq!(Ok(None), write_array(&[]));
-//     }
-// 
-//     #[test]
-//     fn write_context_wrapped_application_value() {
-//         writed_context_value_eq(&[0x3eu8, 0x21, 0x01, 0x3f], ContextValueSequence(3, vec!(ApplicationValue(PrimitiveValue::Unsigned(1)))));
-//     }
-// 
-//     #[test]
-//     fn write_context_sequence_of_application_values() {
-//         writed_context_value_eq(&[0x5eu8, 0x21, 0x01, 0x21, 0x02, 0x21, 0x03, 0x5f], ContextValueSequence(5, vec!(ApplicationValue(PrimitiveValue::Unsigned(1)), ApplicationValue(PrimitiveValue::Unsigned(2)), ApplicationValue(PrimitiveValue::Unsigned(3)))));
-//     }
-// 
-//     #[test]
-//     fn write_context_null() {
-//         writed_context_value_eq(&[0x18u8], ContextValue(1, PrimitiveValue::Null));
-//     }
-// 
-//     #[test]
-//     fn write_context_boolean() {
-//         writed_context_value_eq(&[0x28u8], ContextValue(2, PrimitiveValue::Boolean(false)));
-//         writed_context_value_eq(&[0x29u8], ContextValue(2, PrimitiveValue::Boolean(true)));
-//     }
-// 
-//     #[test]
-//     fn write_context_unsigned() {
-//         use ast::PrimitiveValue::Unsigned;
-//         writed_context_value_eq(&[0x39u8, 200], ContextValue(3, Unsigned(200)));
-//         writed_context_value_eq(&[0x3Au8, 0x99, 0x88], ContextValue(3, Unsigned(0x9988)));
-//         writed_context_value_eq(&[0x3Bu8, 0x99, 0x88, 0x77], ContextValue(3, Unsigned(0x998877)));
-//         writed_context_value_eq(&[0x3Cu8, 0x99, 0x88, 0x77, 0x66], ContextValue(3, Unsigned(0x99887766)));
-//         // length > 4 not supported
-//         assert_eq!(ParseError::ValueSizeNotSupported, write_array(&[0x3du8, 5]).unwrap_err());
-//     }
-// 
-//     fn writed_application_value_eq(data: &[u8], value: PrimitiveValue) {
-//         assert_eq!(ast::SequenceableValue::ApplicationValue(value), write_array(data).unwrap().unwrap());
-//     }
-// 
-//     #[test]
-//     fn write_null() {
-//         writed_application_value_eq(&[0x00u8], PrimitiveValue::Null);
-//     }
-// 
-//     #[test]
-//     fn write_boolean() {
-//         writed_application_value_eq(&[0x10u8], PrimitiveValue::Boolean(false));
-//         writed_application_value_eq(&[0x11u8], PrimitiveValue::Boolean(true));
-//     }
-// 
-//     #[test]
-//     fn write_unsigned() {
-//         use ast::PrimitiveValue::Unsigned;
-//         writed_application_value_eq(&[0x21u8, 200], Unsigned(200));
-//         writed_application_value_eq(&[0x22u8, 0x99, 0x88], Unsigned(0x9988));
-//         writed_application_value_eq(&[0x23u8, 0x99, 0x88, 0x77], Unsigned(0x998877));
-//         writed_application_value_eq(&[0x24u8, 0x99, 0x88, 0x77, 0x66], Unsigned(0x99887766));
-//         // length > 4 not supported
-//         assert_eq!(ParseError::ValueSizeNotSupported, write_array(&[0x25u8, 5]).unwrap_err());
-//     }
-//     // TODO tests for all the error types
-// }
+
+/// Call to write a sequenceable value to the writer, the tag for the value is written first
+/// followed by the encoded value
+pub fn write_sequenceable_value(writer: &mut Vec<u8>, value: SequenceableValue) {
+    match value {
+        SequenceableValue::ContextValue(context, value) => {
+            let (lvt, content, _) = primitive_value_to_tag_value(value);
+            write_tag(writer, Tag::Context(context, lvt));
+            writer.extend(content);
+        },
+        SequenceableValue::ApplicationValue(value) => {
+            let (lvt, content, primitive_type) = primitive_value_to_tag_value(value);
+            write_tag(writer, Tag::Application(primitive_type, lvt));
+            writer.extend(content);
+        },
+        SequenceableValue::ContextValueSequence(context, list) => {
+            write_tag(writer, Tag::Open(context));
+            for e in list {
+                write_sequenceable_value(writer, e);
+            }
+           write_tag(writer, Tag::Close(context)); 
+        },
+    };
+}
+
+/// Call to write a PrimitiveValue and return the lvt portion of the tag
+fn primitive_value_to_tag_value(value: ast::PrimitiveValue) -> (u32, Vec<u8>, u8) {
+    use ast::PrimitiveValue;
+
+    match value {
+        PrimitiveValue::Null => (0, vec![], 0),
+        PrimitiveValue::Boolean(b) => (b as u32, vec![], 1),
+        PrimitiveValue::Unsigned(u) => {
+            let mut uv: Vec<u8> = vec![u as u8];
+            let mut t = u >> 8;
+            println!("{} {}", u, t);
+            while t > 0 {
+                uv.push(t as u8);
+                t = t >> 8;
+            }
+            uv.reverse();
+            (uv.len() as u32, uv, 2)
+        },
+        _ => panic!("Not implemented"),
+    }
+}
+
+#[cfg(test)]
+mod write_sequenceable_value_tests {
+    use super::write_sequenceable_value;
+    use ast;
+    use ast::PrimitiveValue;
+    use ast::SequenceableValue;
+    use ast::SequenceableValue::ContextValue;
+    use ast::SequenceableValue::ApplicationValue;
+    use ast::SequenceableValue::ContextValueSequence;
+
+    fn write_array(sequenceable_value: SequenceableValue) -> Vec<u8> {
+        let mut writer = Vec::new();
+        write_sequenceable_value(&mut writer, sequenceable_value);
+        writer
+    }
+
+    fn written_context_value_eq(data: &[u8], value: ast::SequenceableValue) {
+        assert_eq!(data.to_vec(), write_array(value));
+    }
+
+    #[test]
+    fn write_context_wrapped_application_value() {
+        written_context_value_eq(&[0x3eu8, 0x21, 0x01, 0x3f], ContextValueSequence(3, vec!(ApplicationValue(PrimitiveValue::Unsigned(1)))));
+    }
+
+    #[test]
+    fn write_context_sequence_of_application_values() {
+        written_context_value_eq(&[0x5eu8, 0x21, 0x01, 0x21, 0x02, 0x21, 0x03, 0x5f], ContextValueSequence(5, vec!(ApplicationValue(PrimitiveValue::Unsigned(1)), ApplicationValue(PrimitiveValue::Unsigned(2)), ApplicationValue(PrimitiveValue::Unsigned(3)))));
+    }
+
+    #[test]
+    fn write_context_null() {
+        written_context_value_eq(&[0x18u8], ContextValue(1, PrimitiveValue::Null));
+    }
+
+    #[test]
+    fn write_context_boolean() {
+        written_context_value_eq(&[0x28u8], ContextValue(2, PrimitiveValue::Boolean(false)));
+        written_context_value_eq(&[0x29u8], ContextValue(2, PrimitiveValue::Boolean(true)));
+    }
+
+    #[test]
+    fn write_context_unsigned() {
+        use ast::PrimitiveValue::Unsigned;
+        written_context_value_eq(&[0x39u8, 200], ContextValue(3, Unsigned(200)));
+        written_context_value_eq(&[0x3Au8, 0x99, 0x88], ContextValue(3, Unsigned(0x9988)));
+        written_context_value_eq(&[0x3Bu8, 0x99, 0x88, 0x77], ContextValue(3, Unsigned(0x998877)));
+        written_context_value_eq(&[0x3Cu8, 0x99, 0x88, 0x77, 0x66], ContextValue(3, Unsigned(0x99887766)));
+    }
+
+    fn written_application_value_eq(data: &[u8], value: PrimitiveValue) {
+        assert_eq!(data.to_vec(), write_array(ast::SequenceableValue::ApplicationValue(value)));
+    }
+
+    #[test]
+    fn write_null() {
+        written_application_value_eq(&[0x00u8], PrimitiveValue::Null);
+    }
+
+    #[test]
+    fn write_boolean() {
+        written_application_value_eq(&[0x10u8], PrimitiveValue::Boolean(false));
+        written_application_value_eq(&[0x11u8], PrimitiveValue::Boolean(true));
+    }
+
+    #[test]
+    fn write_unsigned() {
+        use ast::PrimitiveValue::Unsigned;
+        written_application_value_eq(&[0x21u8, 200], Unsigned(200));
+        written_application_value_eq(&[0x22u8, 0x99, 0x88], Unsigned(0x9988));
+        written_application_value_eq(&[0x23u8, 0x99, 0x88, 0x77], Unsigned(0x998877));
+        written_application_value_eq(&[0x24u8, 0x99, 0x88, 0x77, 0x66], Unsigned(0x99887766));
+    }
+}
  
 #[derive(PartialEq, Debug)]
 enum Tag {
@@ -304,7 +291,7 @@ enum Tag {
 /// The Length field can be extended by using 0b111 in the length field, the next octet becomes a
 /// length field, if the next octet is 0xFE, the next 2 octets become a length field, if it is 0xFF
 /// then the next 4 octets become a length field. This encoding allows lengths up to 2^32-1.
-fn write_tag(writer: &mut Write, tag: Tag) {
+fn write_tag(writer: &mut Vec<u8>, tag: Tag) {
     let (is_named, tag_number, is_context, lvt) = match tag {
         Tag::Open(context) => (true, context, true, 0x6),
         Tag::Close(context) => (true, context, true, 0x7),
@@ -322,17 +309,17 @@ fn write_tag(writer: &mut Write, tag: Tag) {
     } else {
         0b101
     };
-    writer.write(&[(tag_portion << 4) ^ class_flag ^ value_portion as u8]);
+    writer.push((tag_portion << 4) ^ class_flag ^ value_portion as u8);
     if tag_portion == 0b1111 {
-        writer.write(&[tag_number]);
+        writer.extend(&[tag_number]);
     }
     if value_portion == 0b101 {
         if lvt <= 253 {
-            writer.write(&[lvt as u8]);
+            writer.push(lvt as u8);
         } else if lvt <= 65535 {
-            writer.write(&[254, (lvt >> 8) as u8, lvt as u8]);
+            writer.extend(vec![254, (lvt >> 8) as u8, lvt as u8]);
         } else {
-            writer.write(&[255, (lvt >> 24) as u8, (lvt >> 16) as u8, (lvt >> 8) as u8, lvt as u8]);
+            writer.extend(vec![255, (lvt >> 24) as u8, (lvt >> 16) as u8, (lvt >> 8) as u8, lvt as u8]);
         }
     }
 }
@@ -341,7 +328,6 @@ fn write_tag(writer: &mut Write, tag: Tag) {
 mod test_write_tag {
     use super::write_tag;
     use super::Tag;
-    use std::io::Write;
 
     fn assert_tag_write(expected: &[u8], tag: Tag) {
         let mut data = Vec::new();
@@ -388,119 +374,4 @@ mod test_write_tag {
         assert_tag_write(&[0x05u8, 0xFF, 0x59, 0x59, 0x59, 0x59], Tag::Application(0, 0x59595959));
     }
 }
-// #[cfg(test)]
-// mod test_write_tag {
-//     use super::write_tag;
-//     use super::Tag;
-//     use std::io::Write;
-//    
-//     #[test]
-//     fn open() {
-//         let mut data: &[u8] = &[0x2eu8];
-//         let mut writer: &mut Write = &mut data;
-//         let tag = write_tag(&mut writer).unwrap();
-//         assert_eq!(Tag::Open(2), tag);
-//     }
-// 
-//     #[test]
-//     fn close() {
-//         let mut data: &[u8] = &[0x2fu8];
-//         let mut writer: &mut Write = &mut data;
-//         let tag = write_tag(&mut writer).unwrap();
-//         assert_eq!(Tag::Close(2), tag);
-//     }
-// 
-//     #[test]
-//     fn application0() {
-//         let mut data: &[u8] = &[0x24u8];
-//         let mut writer: &mut Write = &mut data;
-//         let tag = write_tag(&mut writer).unwrap();
-//         assert_eq!(Tag::Application(2, 4), tag);
-//     }
-// 
-//     /// Extended tag number context tag.
-//     #[test]
-//     fn context1() {
-//         let mut data: &[u8] = &[0xF9u8, 0x59];
-//         let mut writer: &mut Write = &mut data;
-//         let tag = write_tag(&mut writer).unwrap();
-//         assert_eq!(Tag::Context(0x59, 1), tag);
-//     }
-//     
-//     /// Extended value (8-bit) application tag.
-//     #[test]
-//     fn application1() {
-//         let mut data: &[u8] = &[0x05u8, 200];
-//         let mut writer: &mut Write = &mut data;
-//         let tag = write_tag(&mut writer).unwrap();
-//         assert_eq!(Tag::Application(0, 200), tag);
-//     }
-//     
-//     /// Extended value (16-bit) application tag.
-//     #[test]
-//     fn application2() {
-//         let mut data: &[u8] = &[0x05u8, 0xFE, 0x59, 0x59];
-//         let mut writer: &mut Write = &mut data;
-//         let tag = write_tag(&mut writer).unwrap();
-//         assert_eq!(Tag::Application(0, 0x5959), tag);
-//     }
-//     
-//     /// Extended value (32-bit) application tag.
-//     #[test]
-//     fn application32 () {
-//         let mut data: &[u8] = &[0x05u8, 0xFF, 0x59, 0x59, 0x59, 0x59];
-//         let mut writer: &mut Write = &mut data;
-//         let tag = write_tag(&mut writer).unwrap();
-//         assert_eq!(Tag::Application(0, 0x59595959), tag);
-//     }
-// }
 
-// // Write an unsigned integer of the specified number of bytes
-// fn write_unsigned(writer: &mut Write, size: usize) -> Result<u32, ParseError> {
-//     if size > 4 {
-//         return Err(ParseError::ValueSizeNotSupported)
-//     }
-//     let mut value: u32 = 0;
-//     for i in (0..size).rev() {
-//         let next_byte = try!(write_one_byte(writer)) as u32;
-//         value = value | (next_byte << (8 * i));
-//     }
-//     Ok(value)
-// }
-// 
-// fn write_one_byte(writer: &mut Write) -> Result<u8, ParseError> {
-//     let mut buf = [0];
-//     let ret;
-//     loop {
-//         match writer.write(&mut buf) {
-//             Err(ref e) if e.kind() == io::ErrorKind::Interrupted => {},
-//             Err(e) => {
-//                 ret = Err(ParseError::WriteError(e));
-//                 break;
-//             },
-//             Ok(0) => {
-//                 ret = Err(ParseError::InputEndedBeforeParsingCompleted);
-//                 break;
-//             },
-//             Ok(..) => {
-//                 ret = Ok(buf[0]);
-//                 break;
-//             },
-//         };
-//     }
-//     ret
-// }
-// 
-// #[test]
-// fn test_write_unsigned_16() {
-//     let mut data: &[u8] = &[0x99u8, 0x11];
-//     let mut writer: &mut Write = &mut data;
-//     assert_eq!(write_unsigned(writer, 2).unwrap(), 0x9911);
-// }
-// 
-// #[test]
-// fn test_write_unsigned_32() {
-//     let mut data: &[u8] = &[0x22u8, 0x33, 0x44, 0x55];
-//     let mut writer: &mut Write = &mut data;
-//     assert_eq!(write_unsigned(writer, 4).unwrap(), 0x22334455);
-// }
