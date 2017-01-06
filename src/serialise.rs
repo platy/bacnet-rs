@@ -88,50 +88,39 @@ use ast::SequenceableValue;
 //         }), write_array(&[0x20u8, 1, 15]));
 //     }
 // }
-// 
-// pub type Context = fn(u8) -> u8;
-// 
-// pub fn write_value_sequence_to_end(writer: &mut Write, context: Context) -> Result<ast::ValueSequence, ParseError> {
-//     let mut list = vec!();
-//     while let Some(child) = try!(write_sequenceable_value(writer, context)) {
-//         list.push(child);
-//     }
-//     Ok(list)
-// }
-// 
-// #[cfg(test)]
-// mod test_value_sequence_write {
-//     use super::ParseError;
-//     use ast;
-//     use ast::PrimitiveValue;
-//     use ast::SequenceableValue::ContextValue;
-//     use ast::SequenceableValue::ApplicationValue;
-//     use std::io;
-//     use super::write_value_sequence_to_end;
-// 
-//     fn context(context_tag: u8) -> u8 {
-//         context_tag - 1 // this gives us access to all the types for testing in a simple way
-//     }
-// 
-//     fn write_array(data: &[u8]) -> Result<ast::ValueSequence, ParseError> {
-//         let mut writer: &mut io::Write = &mut io::Cursor::new(data);
-//         write_value_sequence_to_end(writer, context)
-//     }
-// 
-//     fn written_value_sequence_eq(data: &[u8], value: ast::ValueSequence) {
-//         assert_eq!(Ok(value), write_array(data));
-//     }
-// 
-//     #[test]
-//     fn write_empty_value_sequence() {
-//         written_value_sequence_eq(&[], vec!())
-//     }
-// 
-//     #[test]
-//     fn write_basic_value_sequence() {
-//         written_value_sequence_eq(&[0x22u8, 0x99, 0x88, 0x28], vec!(ApplicationValue(PrimitiveValue::Unsigned(0x9988)), ContextValue(2, PrimitiveValue::Boolean(false))))
-//     }
-// }
+ 
+pub type Context = fn(u8) -> u8;
+
+pub fn write_value_sequence(writer: &mut Vec<u8>, list: ast::ValueSequence) {
+    for e in list {
+        write_sequenceable_value(writer, e);
+    }
+}
+
+#[cfg(test)]
+mod test_value_sequence_write {
+    use ast;
+    use ast::PrimitiveValue;
+    use ast::SequenceableValue::ContextValue;
+    use ast::SequenceableValue::ApplicationValue;
+    use super::write_value_sequence;
+
+    fn written_value_sequence_eq(data: &[u8], value: ast::ValueSequence) {
+        let mut buf = vec![];
+        write_value_sequence(&mut buf, value);
+        assert_eq!(data.to_vec(), buf);
+    }
+
+    #[test]
+    fn write_empty_value_sequence() {
+        written_value_sequence_eq(&[], vec!())
+    }
+
+    #[test]
+    fn write_basic_value_sequence() {
+        written_value_sequence_eq(&[0x22u8, 0x99, 0x88, 0x28], vec!(ApplicationValue(PrimitiveValue::Unsigned(0x9988)), ContextValue(2, PrimitiveValue::Boolean(false))))
+    }
+}
 
 /// Call to write a sequenceable value to the writer, the tag for the value is written first
 /// followed by the encoded value
