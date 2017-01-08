@@ -2,92 +2,67 @@ use ast;
 use ast::SequenceableValue;
 
 
-// #[derive(Debug)]
-// pub enum ParseError {
-//     WriteError(io::Error),
-//     InputEndedBeforeParsingCompleted, // "Input ended before parsing completed"
-//     ValueSizeNotSupported, // such as an 8byte integer
-//     NotImplemented(&'static str),
-// }
-// 
-// impl PartialEq for ParseError {
-//     fn eq(&self, other: &ParseError) -> bool {
-//         match (self, other) {
-//             (&ParseError::WriteError(_), &ParseError::WriteError(_)) => true,
-//             (&ParseError::InputEndedBeforeParsingCompleted, &ParseError::InputEndedBeforeParsingCompleted) => true,
-//             (&ParseError::ValueSizeNotSupported, &ParseError::ValueSizeNotSupported) => true,
-//             (&ParseError::NotImplemented(string1), &ParseError::NotImplemented(string2)) => string1 == string2,
-//             _ => false
-//         }
-//     }
-// }
-// 
-// pub fn write_apdu_header(writer: &mut Write) -> Result<ast::ApduHeader, ParseError> {
-//     use ast::ApduHeader;
-// 
-//     let first_byte = try!(write_one_byte(writer));
-//     match ((first_byte & 0xF0u8) >> 4, first_byte & 0x0Fu8) {
-//         (0, pdu_flags) => {
-//             let second_byte = try!(write_one_byte(writer));
-//             Ok(ApduHeader::ConfirmedReq { 
-//                 pdu_flags: pdu_flags,
-//                 max_segments: (second_byte >> 4) & 0b111,
-//                 max_apdu: second_byte & 0x0F,
-//                 invoke_id: try!(write_one_byte(writer)),
-//                 service: try!(write_one_byte(writer)),
-//             })
-//         },
-//         (1, _) =>
-//             Ok(ApduHeader::UnconfirmedReq {
-//                 service: try!(write_one_byte(writer)),
-//             }),
-//         (2, _) =>
-//             Ok(ApduHeader::SimpleAck {
-//                 invoke_id: try!(write_one_byte(writer)),
-//                 service: try!(write_one_byte(writer)),
-//             }),
-//         _ => Err(ParseError::NotImplemented("")),
-//     }
-// }
-// 
-// #[cfg(test)]
-// mod test_apdu_header_write {
-//     use super::write_apdu_header;
-//     use super::ParseError;
-//     use ast::ApduHeader;
-//     use std::io;
-// 
-//     fn write_array(data: &[u8]) -> Result<ApduHeader, ParseError> {
-//         let mut writer: &mut io::Write = &mut io::Cursor::new(data);
-//         write_apdu_header(writer)
-//     }
-// 
-//     #[test]
-//     fn write_unconfirmed() {
-//         assert_eq!(Ok(ApduHeader::ConfirmedReq {
-//             pdu_flags: 0b0000,
-//             max_segments: 0x0,
-//             max_apdu: 5,
-//             invoke_id: 1,
-//             service: 15,
-//         }), write_array(&[0u8, 5, 1, 15]));
-//     }
-// 
-//     #[test]
-//     fn write_confirmed() {
-//         assert_eq!(Ok(ApduHeader::UnconfirmedReq {
-//             service: 8,
-//         }), write_array(&[0x10u8, 8]));
-//     }
-// 
-//     #[test]
-//     fn write_simple_ack() {
-//         assert_eq!(Ok(ApduHeader::SimpleAck {
-//             invoke_id: 1,
-//             service: 15,
-//         }), write_array(&[0x20u8, 1, 15]));
-//     }
-// }
+pub fn write_apdu_header(writer: &mut Vec<u8>, header: ast::ApduHeader) {
+    use ast::ApduHeader;
+
+    match header {
+        ApduHeader::ConfirmedReq { service, max_apdu, invoke_id, .. } => {
+            writer.push(0 << 4);    // PDU type and flags
+            writer.push(max_apdu);  // transport limitations
+            writer.push(invoke_id);
+            writer.push(service);
+        },
+        ApduHeader::UnconfirmedReq { service } => {
+            writer.push(1 << 4);
+            writer.push(service);
+        },
+        ApduHeader::SimpleAck { service, invoke_id } => {
+            writer.push(2 << 4);    // PDU type
+            writer.push(invoke_id);
+            writer.push(service);
+        },
+        _ => panic!("Unsupported Apdu type"),
+    }
+}
+
+#[cfg(test)]
+mod test_apdu_header_write {
+    use super::write_apdu_header;
+    use ast::ApduHeader;
+
+    fn assert_header_eq(header: ApduHeader, data: &[u8]) {
+        let mut buf = vec![];
+        write_apdu_header(&mut buf, header);
+        assert_eq!(buf, data.to_vec());
+    }
+
+    #[test]
+    fn write_confirmed() {
+        assert_header_eq(ApduHeader::ConfirmedReq {
+            segmented: None,
+            segmented_response_accepted: false,
+            max_segments: 0x0,
+            max_apdu: 5,
+            invoke_id: 1,
+            service: 15,
+        }, &[0u8, 5, 1, 15]);
+    }
+
+    #[test]
+    fn write_unconfirmed() {
+        assert_header_eq(ApduHeader::UnconfirmedReq {
+            service: 8,
+        }, &[0x10u8, 8]);
+    }
+
+    #[test]
+    fn write_simple_ack() {
+        assert_header_eq(ApduHeader::SimpleAck {
+            invoke_id: 1,
+            service: 15,
+        }, &[0x20u8, 1, 15]);
+    }
+}
  
 pub type Context = fn(u8) -> u8;
 
