@@ -5,20 +5,75 @@ use object;
 /// Defines the whole body of a BACnet APDU message
 #[derive(Debug, PartialEq)]
 pub enum ApduHeader {
+    /// BACnet Confirmed Request - Clause 20.1.2
+    /// Transfers a variable length request to a service, which may be segmented, and expects an acknowledgement
     ConfirmedReq { 
-        pdu_flags: u8, 
+        segmented: Option<SegmentInfo>,
+        segmented_response_accepted: bool,
         max_segments: u8, 
         max_apdu: u8, 
         invoke_id: u8, 
-        service: u8 
+        service: ServiceChoice,
     },
+    /// BACnet Unconfirmed Request - Clause 20.1.3
+    /// Transfers a request to a service
     UnconfirmedReq { 
-        service: u8 
+        service: ServiceChoice,
     },
+    /// BACnet Simple ACK - Clause 20.1.4
+    /// Transfers a successful acknowledgement - with variable length content - from a service in response to a confirmed request to a service
     SimpleAck { 
         invoke_id: u8, 
-        service: u8 
+        service: ServiceChoice,
     },
+    /// BACnet Complex ACK - Clause 20.1.5
+    /// Transfers a successful acknowledgement - with variable length content, which may be
+    /// segmented, in response to a confrimed request to a service
+    ComplexAck {
+        segmented: Option<SegmentInfo>,
+        invoke_id: u8,
+        service: ServiceChoice,
+    },
+    /// BACnet Segment ACK - Clause 20.1.6
+    /// Transfers acknowlegement of receipt of a segment, it may request retransmition of a segment
+    /// or transmition of the next segments
+    SegmentAck {
+        negative_ack: bool,
+        server: bool,
+        invoke_id: ServiceChoice,
+        sequence_number: u8,
+        actual_window_size: u8,
+    },
+    /// BACnet Error PDU - Clause 20.1.7
+    /// Transfers an error result from a confirmed service request, containing error data
+    ErrorPdu {
+        invoke_id: u8,
+        service: ServiceChoice,
+    },
+    /// BACnet Reject PDU - Clause 20.1.8
+    /// Transfers a rejection of a confirmed service request due to the request being invalid, the
+    /// requested service has not been called to any effect
+    RejectPdu {
+        invoke_id: u8,
+        reject_reason: u8,
+    },
+    /// BACnet Abort PDU - Clause 20.1.9
+    /// Aborts a confirmed request between 2 peers
+    AbortPdu {
+        server: bool,
+        invoke_id: u8,
+        abort_reason: u8,
+    },
+}
+
+type ServiceChoice = u8;
+
+/// The fields which are present on message segments - they do not appear on unsegmented messages
+#[derive(Debug, PartialEq)]
+pub struct SegmentInfo {
+    more_follows: bool,
+    sequence_number: u8,
+    proposed_window_size: u8,
 }
 
 /// A sequence of BACnet values

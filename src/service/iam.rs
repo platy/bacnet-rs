@@ -30,6 +30,8 @@ impl Message {
 }
 
 impl ServiceMessage for Message {
+    type Message = Self;
+
     fn choice() -> u8 {
         0
     }

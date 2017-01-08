@@ -29,16 +29,19 @@ pub fn parse_apdu_header(reader: &mut Read) -> Result<ast::ApduHeader, ParseErro
 
     let first_byte = try!(read_one_byte(reader));
     match ((first_byte & 0xF0u8) >> 4, first_byte & 0x0Fu8) {
-        (0, pdu_flags) => {
+        (0, 0) => {
             let second_byte = try!(read_one_byte(reader));
             Ok(ApduHeader::ConfirmedReq { 
-                pdu_flags: pdu_flags,
+                segmented: None,
+                segmented_response_accepted: false,
                 max_segments: (second_byte >> 4) & 0b111,
                 max_apdu: second_byte & 0x0F,
                 invoke_id: try!(read_one_byte(reader)),
                 service: try!(read_one_byte(reader)),
             })
         },
+        (0, _) => 
+            Err(ParseError::NotImplemented("Segmentation")),
         (1, _) =>
             Ok(ApduHeader::UnconfirmedReq {
                 service: try!(read_one_byte(reader)),
@@ -48,7 +51,8 @@ pub fn parse_apdu_header(reader: &mut Read) -> Result<ast::ApduHeader, ParseErro
                 invoke_id: try!(read_one_byte(reader)),
                 service: try!(read_one_byte(reader)),
             }),
-        _ => Err(ParseError::NotImplemented("")),
+        _ => 
+            Err(ParseError::NotImplemented("")),
     }
 }
 
@@ -67,7 +71,8 @@ mod test_apdu_header_parse {
     #[test]
     fn parse_unconfirmed() {
         assert_eq!(Ok(ApduHeader::ConfirmedReq {
-            pdu_flags: 0b0000,
+            segmented: None,
+            segmented_response_accepted: false,
             max_segments: 0x0,
             max_apdu: 5,
             invoke_id: 1,
@@ -348,65 +353,50 @@ mod test_read_tag {
     use super::parse_tag;
     use super::Tag;
     use std::io::Read;
+
+    fn assert_tag_read(data: &[u8], expected: Tag) {
+        let mut reader: &mut Read = &mut data.clone();
+        let new_tag = parse_tag(&mut reader).unwrap();
+        assert_eq!(expected, new_tag);
+    }
    
     #[test]
     fn open() {
-        let mut data: &[u8] = &[0x2eu8];
-        let mut reader: &mut Read = &mut data;
-        let tag = parse_tag(&mut reader).unwrap();
-        assert_eq!(Tag::Open(2), tag);
+        assert_tag_read(&[0x2eu8], Tag::Open(2));
     }
 
     #[test]
     fn close() {
-        let mut data: &[u8] = &[0x2fu8];
-        let mut reader: &mut Read = &mut data;
-        let tag = parse_tag(&mut reader).unwrap();
-        assert_eq!(Tag::Close(2), tag);
+        assert_tag_read(&[0x2fu8], Tag::Close(2));
     }
 
     #[test]
     fn application0() {
-        let mut data: &[u8] = &[0x24u8];
-        let mut reader: &mut Read = &mut data;
-        let tag = parse_tag(&mut reader).unwrap();
-        assert_eq!(Tag::Application(2, 4), tag);
+        assert_tag_read(&[0x24u8], Tag::Application(2, 4));
     }
 
     /// Extended tag number context tag.
     #[test]
     fn context1() {
-        let mut data: &[u8] = &[0xF9u8, 0x59];
-        let mut reader: &mut Read = &mut data;
-        let tag = parse_tag(&mut reader).unwrap();
-        assert_eq!(Tag::Context(0x59, 1), tag);
+        assert_tag_read(&[0xF9u8, 0x59], Tag::Context(0x59, 1));
     }
     
     /// Extended value (8-bit) application tag.
     #[test]
     fn application1() {
-        let mut data: &[u8] = &[0x05u8, 200];
-        let mut reader: &mut Read = &mut data;
-        let tag = parse_tag(&mut reader).unwrap();
-        assert_eq!(Tag::Application(0, 200), tag);
+        assert_tag_read(&[0x05u8, 200], Tag::Application(0, 200));
     }
     
     /// Extended value (16-bit) application tag.
     #[test]
     fn application2() {
-        let mut data: &[u8] = &[0x05u8, 0xFE, 0x59, 0x59];
-        let mut reader: &mut Read = &mut data;
-        let tag = parse_tag(&mut reader).unwrap();
-        assert_eq!(Tag::Application(0, 0x5959), tag);
+        assert_tag_read(&[0x05u8, 0xFE, 0x59, 0x59], Tag::Application(0, 0x5959));
     }
     
     /// Extended value (32-bit) application tag.
     #[test]
     fn application32 () {
-        let mut data: &[u8] = &[0x05u8, 0xFF, 0x59, 0x59, 0x59, 0x59];
-        let mut reader: &mut Read = &mut data;
-        let tag = parse_tag(&mut reader).unwrap();
-        assert_eq!(Tag::Application(0, 0x59595959), tag);
+        assert_tag_read(&[0x05u8, 0xFF, 0x59, 0x59, 0x59, 0x59], Tag::Application(0, 0x59595959));
     }
 }
 

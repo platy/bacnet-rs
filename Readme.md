@@ -27,3 +27,22 @@ Serial form          AST         Message
 - Object model interface
 - Network layer
 
+## Milestones
+
+### 0.1 - First release
+
+- Rewrite readme
+- Examples for several use profiles
+- Put in crates.io repository
+- Reviewed by severl relevent people
+- Describe milestone 0.2 - Including a new profile fully supported - Annex L
+- Comply to style guidelines
+- Support local networking at least
+- Support whois, iam, who-has, i-have, readprop, Cov, writeprop BIBBs - Annex K
+- Describe support in terms of BIBBs - Annex K
+- Support device, binaryx and analogx object types
+- Support properties for the above object types
+- Support all the Application PDU types in Clause 20
+- Support includes all of B-General - Annex L
+- Register vendor id to use in examples
+

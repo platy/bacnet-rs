@@ -3,8 +3,8 @@
 use ast::ValueSequence;
 use ast::ApduHeader;
 use object::BacnetDB;
-mod whois;
-mod iam;
+pub mod whois;
+pub mod iam;
 
 pub fn handle_apdu(header: ApduHeader, body: &ValueSequence, db: &BacnetDB) -> Option<ValueSequence> {
     match header {
@@ -21,14 +21,15 @@ fn unconfirmed_service(choice: u8) -> UnconfirmedHandler {
     }
 }
 
-trait ServiceMessage where Self: Sized {
+pub trait ServiceMessage {
+    type Message;
     fn choice() -> u8;
-    fn unmarshall(body: &ValueSequence) -> Result<Self, UnmarshallError>;
+    fn unmarshall(body: &ValueSequence) -> Result<Self::Message, UnmarshallError>;
     fn marshall(&self) -> ValueSequence;
 }
 
 #[derive(Debug, PartialEq)]
-enum UnmarshallError {
+pub enum UnmarshallError {
     RequiredValueNotProvided,
 }
 
