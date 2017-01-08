@@ -6,10 +6,17 @@ pub fn write_apdu_header(writer: &mut Vec<u8>, header: ast::ApduHeader) {
     use ast::ApduHeader;
 
     match header {
-        ApduHeader::ConfirmedReq { service, max_apdu, invoke_id, .. } => {
-            writer.push(0 << 4);    // PDU type and flags
-            writer.push(max_apdu);  // transport limitations
+        ApduHeader::ConfirmedReq { service, max_apdu, invoke_id, max_segments, segmented, segmented_response_accepted } => {
+            let seg = segmented.is_some() as u8;
+            let mor = segmented.as_ref().map_or(false, |info| info.more_follows) as u8;
+            let sa = segmented_response_accepted as u8;
+            writer.push(0 << 4 ^ seg << 3 ^ mor << 2 ^ sa << 1);    // PDU type and flags
+            writer.push(max_segments << 4 ^ max_apdu);  // transport limitations
             writer.push(invoke_id);
+            if let Some(ast::SegmentInfo { sequence_number, proposed_window_size, .. }) = segmented {
+                writer.push(sequence_number);
+                writer.push(proposed_window_size);
+            }
             writer.push(service);
         },
         ApduHeader::UnconfirmedReq { service } => {
@@ -29,6 +36,7 @@ pub fn write_apdu_header(writer: &mut Vec<u8>, header: ast::ApduHeader) {
 mod test_apdu_header_write {
     use super::write_apdu_header;
     use ast::ApduHeader;
+    use ast::SegmentInfo;
 
     fn assert_header_eq(header: ApduHeader, data: &[u8]) {
         let mut buf = vec![];
@@ -46,6 +54,22 @@ mod test_apdu_header_write {
             invoke_id: 1,
             service: 15,
         }, &[0u8, 5, 1, 15]);
+    }
+
+    #[test]
+    fn write_confirmed_max() {
+        assert_header_eq(ApduHeader::ConfirmedReq {
+            segmented: Some(SegmentInfo {
+                more_follows: true,
+                sequence_number: 255,
+                proposed_window_size: 127,
+            }),
+            segmented_response_accepted: true,
+            max_segments: 0x7,
+            max_apdu: 0xF,
+            invoke_id: 253,
+            service: 254,
+        }, &[0x0Eu8, 0x7F, 253, 255, 127, 254]);
     }
 
     #[test]
