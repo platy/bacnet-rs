@@ -48,7 +48,7 @@ pub enum ApduHeader {
     /// Transfers an error result from a confirmed service request, containing error data
     ErrorPdu {
         invoke_id: u8,
-        service: ServiceChoice,
+        error_choice: u8,
     },
     /// BACnet Reject PDU - Clause 20.1.8
     /// Transfers a rejection of a confirmed service request due to the request being invalid, the
@@ -69,11 +69,12 @@ pub enum ApduHeader {
 type ServiceChoice = u8;
 
 /// The fields which are present on message segments - they do not appear on unsegmented messages
+/// TODO move into a segmentation module which generates these and maybe make the fields private
 #[derive(Debug, PartialEq)]
 pub struct SegmentInfo {
-    more_follows: bool,
-    sequence_number: u8,
-    proposed_window_size: u8,
+    pub more_follows: bool,
+    pub sequence_number: u8,
+    pub proposed_window_size: u8,
 }
 
 /// A sequence of BACnet values
