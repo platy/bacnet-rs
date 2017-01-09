@@ -28,7 +28,40 @@ pub fn write_apdu_header(writer: &mut Vec<u8>, header: ast::ApduHeader) {
             writer.push(invoke_id);
             writer.push(service);
         },
-        _ => panic!("Unsupported Apdu type"),
+        ApduHeader::ComplexAck { service, invoke_id, segmented } => {
+            let seg = segmented.is_some() as u8;
+            let mor = segmented.as_ref().map_or(false, |info| info.more_follows) as u8;
+            writer.push(3 << 4 ^ seg << 3 ^ mor << 2);    // PDU type and flags
+            writer.push(invoke_id);
+            if let Some(ast::SegmentInfo { sequence_number, proposed_window_size, .. }) = segmented {
+                writer.push(sequence_number);
+                writer.push(proposed_window_size);
+            }
+            writer.push(service);
+        },
+        ApduHeader::SegmentAck { negative_ack, server, invoke_id, sequence_number, actual_window_size } => {
+            let nak = negative_ack as u8;
+            let srv = server as u8;
+            writer.push(4 << 4 ^ nak << 1 ^ srv);
+            writer.push(invoke_id);
+            writer.push(sequence_number);
+            writer.push(actual_window_size);
+        },
+        ApduHeader::ErrorPdu { invoke_id, error_choice } => {
+            writer.push(5 << 4);
+            writer.push(invoke_id);
+            writer.push(error_choice);
+        },
+        ApduHeader::RejectPdu { invoke_id, reject_reason } => {
+            writer.push(6 << 4);
+            writer.push(invoke_id);
+            writer.push(reject_reason);
+        },
+        ApduHeader::AbortPdu { invoke_id, server, abort_reason } => {
+            writer.push(7 << 4 ^ server as u8);
+            writer.push(invoke_id);
+            writer.push(abort_reason);
+        },
     }
 }
 
@@ -85,6 +118,64 @@ mod test_apdu_header_write {
             invoke_id: 1,
             service: 15,
         }, &[0x20u8, 1, 15]);
+    }
+
+    #[test]
+    fn write_complexack_basic() {
+        assert_header_eq(ApduHeader::ComplexAck {
+            segmented: None,
+            invoke_id: 1,
+            service: 15,
+        }, &[0x30u8, 1, 15]);
+    }
+
+    #[test]
+    fn write_complexack_segmented() {
+        assert_header_eq(ApduHeader::ComplexAck {
+            segmented: Some(SegmentInfo {
+                more_follows: true,
+                sequence_number: 255,
+                proposed_window_size: 127,
+            }),
+            invoke_id: 253,
+            service: 254,
+        }, &[0x3Cu8, 253, 255, 127, 254]);
+    }
+
+    #[test]
+    fn write_segment_ack() {
+        assert_header_eq(ApduHeader::SegmentAck {
+            negative_ack: true,
+            server: true,
+            invoke_id: 1,
+            sequence_number: 45,
+            actual_window_size: 57,
+        }, &[0x43u8, 1, 45, 57]);
+    }
+
+    #[test]
+    fn write_error_pdu() {
+        assert_header_eq(ApduHeader::ErrorPdu {
+            invoke_id: 1,
+            error_choice: 127,
+        }, &[0x50u8, 1, 127]);
+    }
+
+    #[test]
+    fn write_reject_pdu() {
+        assert_header_eq(ApduHeader::RejectPdu {
+            invoke_id: 1,
+            reject_reason: 127,
+        }, &[0x60u8, 1, 127]);
+    }
+
+    #[test]
+    fn write_abort_pdu() {
+        assert_header_eq(ApduHeader::AbortPdu {
+            invoke_id: 1,
+            abort_reason: 127,
+            server: true,
+        }, &[0x71u8, 1, 127]);
     }
 }
  

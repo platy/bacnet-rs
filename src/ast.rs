@@ -48,7 +48,7 @@ pub enum ApduHeader {
     /// Transfers an error result from a confirmed service request, containing error data
     ErrorPdu {
         invoke_id: u8,
-        service: ServiceChoice,
+        error_choice: u8,
     },
     /// BACnet Reject PDU - Clause 20.1.8
     /// Transfers a rejection of a confirmed service request due to the request being invalid, the
